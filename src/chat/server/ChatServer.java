@@ -51,12 +51,23 @@ public class ChatServer {
 
     static void privateMessage(String targetName, String message, ClientHandler sender) {
         ClientHandler target = clientMap.get(targetName);
+        for (String name : clientMap.keySet()) {
+            if (name.equalsIgnoreCase(targetName)) {
+                target = clientMap.get(name);
+                break;
+            }
+        }
+
         if (target != null) {
-            target.sendMessage("\u001B[36m[PM from\u001B[0m "+ sender.clientName +"]: \u001B[37m" + message);
-            sender.sendMessage("\u001B[36m[PM to\u001B[0m "+ targetName +"]: \u001B[37m" + message);
+            target.sendMessage("\u001B[35m[PM from "+ sender.clientName +"]: " + message + "\u001B[0m");
+            sender.sendMessage("\u001B[35m[PM to "+ targetName +"]: " + message + "\u001B[0m");
         } else {
             sender.sendMessage("\u001B[31mUser " + targetName + " not found.\u001B[0m");
         }
+
+        System.out.println("clientMap keys: " + clientMap.keySet());
+        System.out.println("targetName: '" + targetName + "'");
+
     }
 
     static void removeClient(ClientHandler client) {
@@ -80,7 +91,7 @@ public class ChatServer {
             for (ClientHandler c : clientsInRoom) {
                 sb.append(" ").append(c.clientName);
             }
-            sendMessage(sb.toString());
+            sendMessage(sb.toString()+"\u001B[0m");
         }
 
         void joinRoom(String newRoom) {
@@ -112,7 +123,7 @@ public class ChatServer {
         }
 
         void listAllRooms() {
-            StringBuilder sb = new StringBuilder("\u001B[33m[SERVER]: Available rooms: ");
+            StringBuilder sb = new StringBuilder("\u001B[33m[SERVER]: Available rooms: \u001B[0m");
             for (Map.Entry<String, Set<ClientHandler>> entry : ChatServer.roomMap.entrySet()) {
                 String roomName = entry.getKey();
                 int memberCount = entry.getValue().size();
@@ -155,7 +166,7 @@ public class ChatServer {
                 roomMap.putIfAbsent(currentRoom, ConcurrentHashMap.newKeySet());
                 roomMap.get(currentRoom).add(this);
 
-                sendMessage("\u001B[33m--> You joined room: \u001B[36mLobby\u001B[0m");
+                sendMessage("\u001B[33m--> You joined room: \u001B[32mLobby\u001B[0m");
                 broadcastToRoom("\u001B[33m--> \u001B[32m" + clientName + " \u001B[33mhas joined the chat\u001B[0m", this, currentRoom);
                 log("--> " + clientName + " has joined the chat");
 

@@ -21,7 +21,7 @@ public class ChatClient {
                 System.out.print("\u001B[33mEnter your name: \u001B[36m");
                 String name = stdIn.readLine();
                 if (!name.isEmpty()) {
-                    out.println("\u001B[36m"+name+"\u001B[0m");
+                    out.println(name);
                     break;
                 } else {
                     System.out.println("\u001B[31m[SERVER]: You must enter your name!\u001B[0m");
