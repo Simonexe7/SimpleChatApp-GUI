@@ -5,6 +5,9 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +17,7 @@ public class ChatServer {
     private static Set<ClientHandler> clientHandlers = ConcurrentHashMap.newKeySet();
     private static Map<String, ClientHandler> clientMap = new ConcurrentHashMap<>();
     private static Map<String, Set<ClientHandler>> roomMap = new ConcurrentHashMap<>();
+    private static Map<String, LinkedList<String>> roomHistory = new ConcurrentHashMap<>();
     private static PrintWriter logWriter;
 
     private static void log(String message) {
@@ -23,12 +27,12 @@ public class ChatServer {
 
     public static void main(String[] args) throws IOException {
         logWriter = new PrintWriter(new FileWriter("chat-server.log", true), true);
-        System.out.println("\u001B[33m[SERVER]: Server started on port " + PORT + "\u001B[0m");
+        System.out.println("[SERVER]: Server started on port " + PORT);
 
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                System.out.println("\u001B[33m[SERVER]: New client connected: " + clientSocket + "\u001B[0m");
+                System.out.println("[SERVER]: New client connected: " + clientSocket);
                 ClientHandler handler = new ClientHandler(clientSocket);
                 clientHandlers.add(handler);
                 new Thread(handler).start();
@@ -41,6 +45,15 @@ public class ChatServer {
     static void broadcastToRoom(String message, ClientHandler sender, String room) {
         Set<ClientHandler> clientsInRoom = roomMap.get(room);
         if (clientsInRoom == null) return;
+
+        roomHistory.putIfAbsent(room, new LinkedList<>());
+        LinkedList<String> history = roomHistory.get(room);
+        synchronized (history) {
+            history.add(message);
+            if (history.size() > 20) {
+                history.removeFirst();
+            }
+        }
 
         for (ClientHandler client : clientsInRoom) {
             if (client != sender) {
@@ -59,15 +72,16 @@ public class ChatServer {
         }
 
         if (target != null) {
-            target.sendMessage("\u001B[35m[PM from "+ sender.clientName +"]: " + message + "\u001B[0m");
-            sender.sendMessage("\u001B[35m[PM to "+ targetName +"]: " + message + "\u001B[0m");
+            target.sendMessage("[PM from "+ sender.clientName +"]: " + message);
+            sender.sendMessage("[PM to "+ targetName +"]: " + message);
         } else {
-            sender.sendMessage("\u001B[31mUser " + targetName + " not found.\u001B[0m");
+            sender.sendMessage("(Err) User " + targetName + " not found.");
         }
+    }
 
-        System.out.println("clientMap keys: " + clientMap.keySet());
-        System.out.println("targetName: '" + targetName + "'");
-
+    private static String timestamp() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+        return "["+LocalTime.now().format(formatter)+"] ";
     }
 
     static void removeClient(ClientHandler client) {
@@ -85,18 +99,41 @@ public class ChatServer {
             this.socket = socket;
         }
 
+        void broadcastUserListToRoom() {
+            Set<ClientHandler> clientsInRoom = roomMap.get(currentRoom);
+            if (clientsInRoom == null) return;
+
+            StringBuilder sb = new StringBuilder("USERS:");
+            for (ClientHandler c : clientsInRoom) {
+                sb.append(c.clientName).append(",");
+            }
+            String userListMsg = sb.toString();
+
+            for (ClientHandler c : clientsInRoom) {
+                c.sendMessage(userListMsg);
+            }
+        }
+
         void listRoomMembers() {
             Set<ClientHandler> clientsInRoom = roomMap.get(currentRoom);
-            StringBuilder sb = new StringBuilder("\u001B[33m[SERVER]: Members in\u001B[0m \u001B[32m"+ currentRoom + "\u001B[0m: \u001B[36m");
+            StringBuilder sb = new StringBuilder("[SERVER]: Members in "+ currentRoom + ": ");
             for (ClientHandler c : clientsInRoom) {
                 sb.append(" ").append(c.clientName);
             }
-            sendMessage(sb.toString()+"\u001B[0m");
+            sendMessage(sb.toString()+"");
         }
 
         void joinRoom(String newRoom) {
+            LinkedList<String> history = ChatServer.roomHistory.get(newRoom);
+            if (history != null) {
+                sendMessage("======== Last 20 messages in " + newRoom + " =======");
+                for (String msg : history) {
+                    sendMessage(msg);
+                }
+                sendMessage("========== End of history ========");
+            }
             if (newRoom.isEmpty()) {
-                sendMessage("\u001B[31mRoom name cannot be empty.\u001B[0m");
+                sendMessage("(Err) Room name cannot be empty.");
                 return;
             } 
 
@@ -104,7 +141,8 @@ public class ChatServer {
                 Set<ClientHandler> oldRoomClients = ChatServer.roomMap.get(currentRoom);
                 if (oldRoomClients != null) {
                     oldRoomClients.remove(this);
-                    ChatServer.broadcastToRoom("\u001B[33m<--- \u001B[36m"+clientName + " \u001B[33mhas left the room.\u001B[0m", this, currentRoom);
+                    ChatServer.broadcastToRoom("<--- "+clientName + " has left the room.", this, currentRoom);
+                    broadcastUserListToRoom();
                 }
             }
 
@@ -116,44 +154,46 @@ public class ChatServer {
             ChatServer.roomMap.get(newRoom).add(this);
 
             if (roomExists) {
-                sendMessage("\u001B[33m--> Joined existing room \u001B[32m\""+newRoom+"\".\u001B[0m");
+                sendMessage("--> Joined existing room \""+newRoom+"\".");
             } else {
-                sendMessage("\u001B[33m--> Room \u001B[32m\""+newRoom+"\" created and joined.\u001B[0m");
+                sendMessage("--> Room \""+newRoom+"\" created and joined.");
             }
         }
 
         void listAllRooms() {
-            StringBuilder sb = new StringBuilder("\u001B[33m[SERVER]: Available rooms: \u001B[0m");
+            StringBuilder sb = new StringBuilder("[SERVER]: Available rooms: ");
             for (Map.Entry<String, Set<ClientHandler>> entry : ChatServer.roomMap.entrySet()) {
                 String roomName = entry.getKey();
                 int memberCount = entry.getValue().size();
-                sb.append("\n- \u001B[32m").append(roomName).append(" \u001B[33m(").append(memberCount).append(")\u001B[0m");
+                sb.append("\n- ").append(roomName).append(" (").append(memberCount).append(")");
             }
             sendMessage(sb.toString());
         }
 
         void leaveRoom() {
             if ("Lobby".equals(currentRoom)) {
-                sendMessage("\u001B[33m[SERVER]: You are already in the lobby.\u001B[0m");
+                sendMessage("[SERVER]: You are already in the lobby.");
                 return;
             }
 
             Set<ClientHandler> oldRoomClients = ChatServer.roomMap.get(currentRoom);
             if (oldRoomClients != null) {
                 oldRoomClients.remove(this);
-                ChatServer.broadcastToRoom("\u001B[33m<-- \u001B[36m"+clientName + " \u001B[33mhas left the room\u001B[0m", this, currentRoom);
+                ChatServer.broadcastToRoom("<-- "+clientName + " has left the room", this, currentRoom);
+                broadcastUserListToRoom();
             }
 
             currentRoom = "Lobby";
             ChatServer.roomMap.putIfAbsent("Lobby", ConcurrentHashMap.newKeySet());
             ChatServer.roomMap.get("Lobby").add(this);
 
-            sendMessage("\u001B[33m[SERVER]: You have left the room and returned to Lobby.\u001B[0m");
-            ChatServer.broadcastToRoom("\u001B[33m--> \u001B[36m"+clientName + " \u001B[33mhas joined the room.\u001B[0m", this, currentRoom);
+            sendMessage("[SERVER]: You have left the room and returned to Lobby.");
+            ChatServer.broadcastToRoom("--> "+clientName + " has joined the room.", this, currentRoom);
         }
 
         public void run() {
             try {
+                String time = timestamp();
                 out = new PrintWriter(socket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
@@ -166,9 +206,11 @@ public class ChatServer {
                 roomMap.putIfAbsent(currentRoom, ConcurrentHashMap.newKeySet());
                 roomMap.get(currentRoom).add(this);
 
-                sendMessage("\u001B[33m--> You joined room: \u001B[32mLobby\u001B[0m");
-                broadcastToRoom("\u001B[33m--> \u001B[32m" + clientName + " \u001B[33mhas joined the chat\u001B[0m", this, currentRoom);
+                sendMessage("--> You joined room: Lobby");
+                broadcastToRoom("--> " + clientName + " has joined the chat", this, currentRoom);
                 log("--> " + clientName + " has joined the chat");
+
+                broadcastUserListToRoom();
 
                 String message;
                 while ((message = in.readLine()) != null) {
@@ -179,7 +221,7 @@ public class ChatServer {
                             String privateMsg = message.substring(spaceIdx + 1);
                             privateMessage(targetName, privateMsg, this);
                         } else {
-                            out.println("\u001B[31mInvalid private message format. Use: @username message\u001B[0m");
+                            out.println("(Err) Invalid private message format. Use: @username message");
                         }
                     } else if (message.equals("/list")) {
                         listRoomMembers();
@@ -187,29 +229,32 @@ public class ChatServer {
                         String newRoom = message.substring(6).trim();
 
                         if (newRoom.equals(currentRoom)) {
-                            sendMessage("\u001B[33m[SERVER]: You are currently in that room.\u001B[0m");
+                            sendMessage("[SERVER]: You are currently in that room.");
                             continue;
                         }
                         joinRoom(newRoom);
-                        broadcastToRoom("\u001B[33m--> \u001B[36m" + clientName + " has joined the chat\u001B[0m", this, newRoom);
+                        broadcastToRoom("--> " + clientName + " has joined the chat", this, newRoom);
+                        broadcastUserListToRoom();
                         continue;
                     } else if (message.equals("/rooms")) {
                         listAllRooms();
                     } else if (message.equals("/leave")) {
                         leaveRoom();
+                        broadcastUserListToRoom();
                     } else {
                         if (currentRoom == null) {
-                            sendMessage("\u001B[33m[SERVER]: You are not in a room. Use /join roomName to join one.\u001B[0m");
+                            sendMessage("[SERVER]: You are not in a room. Use /join roomName to join one.");
                             continue;
                         }
-                        System.out.println("\u001B[36m["+ clientName +"]\u001B[0m: " + message);
-                        broadcastToRoom("\u001B[36m["+ clientName +"]\u001B[0m: "+ message, this, currentRoom);
+                        System.out.println(time + "["+ clientName +"]: " + message);
+                        broadcastToRoom(time + "["+ clientName +"]: "+ message, this, currentRoom);
+                        broadcastUserListToRoom();
                         log("["+ clientName +"]: "+ message);
                     }
 
                 }
             } catch (IOException e) {
-                System.out.println("\u001B[33m[SERVER]: Client disconnected: " + socket + "\u001B[0m");
+                System.out.println("[SERVER]: Client disconnected: " + socket);
             } finally {
                 try {
                     socket.close();
@@ -218,7 +263,8 @@ public class ChatServer {
                 }
                 removeClient(this);
                 clientMap.remove(this.clientName);
-                broadcastToRoom("\u001B[33m<-- \u001B[34m"+clientName+ " \u001B[33mhas left the chat\u001B[0m", this, currentRoom);
+                broadcastToRoom("<-- "+clientName+ " has left the chat", this, currentRoom);
+                broadcastUserListToRoom();
                 log("<-- "+clientName+ " has left the chat");
                 logWriter.close();
             }

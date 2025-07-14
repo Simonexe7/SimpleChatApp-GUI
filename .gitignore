@@ -1,5 +1,4 @@
 *.class
-*.jar
-
-out/
+chat-server.log
+build/
 

@@ -6,49 +6,62 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
+import GUI.ClientUI;
+
 public class ChatClient {
     private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 12345;
+    private Socket socket;
+    private BufferedReader in;
+    private PrintWriter out;
+    private ClientUI ui;
 
-    public static void main(String[] args) {
-        try (
-            Socket socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader stdIn = new BufferedReader(new InputStreamReader(System.in));    
-        ) {
-            while (true) {
-                System.out.print("\u001B[33mEnter your name: \u001B[36m");
-                String name = stdIn.readLine();
-                if (!name.isEmpty()) {
-                    out.println(name);
-                    break;
-                } else {
-                    System.out.println("\u001B[31m[SERVER]: You must enter your name!\u001B[0m");
-                }
-            }
+    public ChatClient(String username, ClientUI ui) {
+        this.ui = ui;
+        try {
+            socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(socket.getOutputStream(), true);
 
-            System.out.println("\u001B[33mConnected to chat server!\u001B[0m");
+            out.println(username);
 
-            Thread readerThread = new Thread(() -> {
+            listenForMessages();
+
+        } catch (IOException e) {
+            ui.showError("Failed to connect: " + e.getMessage());
+        }
+    }
+
+    private void listenForMessages() {
+        Thread t = new Thread(() -> {
+            try {
                 String fromServer;
-
-                try {
-                    while ((fromServer = in.readLine()) != null) {
-                        System.out.println("Message: " + fromServer);
+                while ((fromServer = in.readLine()) != null) {
+                    if (fromServer.startsWith("USERS:")) {
+                        String[] users = fromServer.substring(6).split(",");
+                        ui.updateUserList(users);
+                    } else {
+                        ui.appendMessage(fromServer);
                     }
-                } catch (IOException e) {
-                    System.out.println("\u001B[31m[SERVER]: Connection closed.\u001B[0m");
                 }
-            });
-            readerThread.start();
-
-            String userInput;
-            while ((userInput = stdIn.readLine()) != null) {
-                out.println(userInput);
+            } catch (IOException e) {
+                ui.showError("Connection closed.");
             }
-        } catch (IOException e) { 
-            e.printStackTrace();
+        });
+        t.start();
+    }
+    
+    public void sendMessage(String msg) {
+        if (out != null) {
+            out.println(msg);
+        }
+    }
+
+    public void disconnect() {
+        try {
+            socket.close();
+        } catch (IOException e) {
+            // TODO: handle exception
         }
     }
 }

@@ -1,90 +1,78 @@
+# Simple Chat App GUI
 
-# ☕ Aplikasi Chat Sederhana dengan Java
+A simple Java Swing-based chat application with emoji picker, dark mode, and colored messages.
 
-Aplikasi chat multi-room sederhana menggunakan Java Sockets.  
-Mendukung banyak klien, ruang obrolan, pesan pribadi, dan perintah-perintah dasar — semua dijalankan di terminal.
+## Features
 
----
+✅ Multi-client chat with server  
+✅ Emoji picker with categorized tabs  
+✅ Dark & light mode toggle  
+✅ Colored usernames in chat  
+✅ Error & system messages styled differently  
+✅ Responsive, scrollable UI
 
-## 🚀 Fitur
+## Requirements
 
-✅ Mendukung banyak klien secara bersamaan  
-✅ Ruang obrolan (buat/masuk/keluar room)  
-✅ Melihat semua room yang tersedia dengan jumlah anggota (`/rooms`)  
-✅ Melihat anggota di room saat ini (`/list`)  
-✅ Broadcast & pesan pribadi (`@username <pesan>`)  
-✅ Pesan broadcast dari server  
-✅ Tampilan berwarna di terminal  
-✅ Aktivitas server dicatat ke file log
+- Java 8 or newer
+- `json.jar` (for org.json)
+- `emoji-java` library
 
----
+## 📸 Screenshot
+![screenshot](docs/pic1.PNG)
+![screenshot](docs/pic2.PNG)
 
-## 🏗 Struktur Direktori
+## Setup
+
+### Libraries
+
+Place these jar files in the `lib/` folder:
+- `emoji-java-5.x.jar`
+- `json-20250517.jar`
+
+### Compile
+Use the provided `.bat` file for Windows:
 
 ```
-.
-├── lib
-├── src
-    └── chat
-        └── client
-            └── ChatClient.java
-        └── server
-            └── ChatServer.java
-├── chat-server.log
-└── README.md
+build.bat
 ```
 
----
-
-## 📋 Perintah
-
-| Perintah | Deskripsi |
-|----------|-----------|
-| `/rooms` | Melihat semua room yang tersedia dan jumlah anggotanya |
-| `/join <nama_room>` | Masuk atau membuat room baru |
-| `/leave` | Keluar dari room saat ini dan kembali ke Lobby |
-| `/list` | Melihat anggota yang ada di room saat ini |
-| `@username <pesan>` | Mengirim pesan pribadi ke pengguna tertentu |
-| teks biasa | Mengirim pesan broadcast ke semua anggota di room |
-
----
-
-## 🖥 Cara Menjalankan
-
-### 📝 Syarat
-- Java JDK 8+ sudah terpasang
-
-### 🧪 Langkah-langkah
-
-1️⃣ Kompilasi server & klien:
 ```bash
-javac -d build src/chat/client/ChatClient.java src/chat/server/ChatServer.java
+javac -cp lib/*.jar -d build lib/EmojiPicker.java src/chat/client/ChatClient.java src/chat/server/ChatServer.java src/GUI/ClientUI.java
 ```
 
-2️⃣ Jalankan server:
+### Run
+
+Use the provided `.bat` file for Windows:
+Run Server
+
+```
+runServer.bat
+```
+Run Client
+
+```
+run.bat
+```
+
+or manually:
+
+Server
 ```bash
 java -cp build ChatServer
 ```
 
-3️⃣ Jalankan klien (di jendela terminal terpisah, bisa lebih dari satu):
+Client
 ```bash
-java -cp build chat.client.ChatClient
+java -cp "build;lib\emoji-java-5.1.1.jar;lib\json-20250517.jar" GUI.ClientUI
 ```
 
-4️⃣ Ikuti petunjuk & mulai chatting!
+## Notes
+
+- Username is requested on startup.
+- Messages starting with `(Err)` appear in **red**.
+- System messages (join/leave) appear in **gray italic**.
+- Each user has a unique color.
 
 ---
 
-## 🎨 Catatan
-
-- Output di terminal sudah mendukung warna ANSI supaya lebih mudah dibaca.
-- Semua aktivitas chat dicatat di file `chat-server.log`.
-- Port default: `12345`
-- Room default: `Lobby`
-
----
-
-## 📜 Lisensi
-
-Proyek ini bebas digunakan, dimodifikasi, dan didistribusikan.  
-Selamat belajar & semoga bermanfaat! ✨
+Enjoy chatting! 🎉
