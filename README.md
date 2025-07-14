@@ -43,6 +43,7 @@ javac -cp lib/*.jar -d build lib/EmojiPicker.java src/chat/client/ChatClient.jav
 ### Run
 
 Use the provided `.bat` file for Windows:
+
 Run Server
 
 ```
